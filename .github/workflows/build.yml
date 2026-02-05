@@ -1,0 +1,49 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build site
+        run: npm run build
+
+      - name: Install Electron
+        run: npm install electron electron-builder --save-dev
+
+      - name: Create electron.js
+        run: |
+          echo const { app, BrowserWindow } = require('electron'); > electron.js
+          echo const path = require('path'); >> electron.js
+          echo function createWindow() { >> electron.js
+          echo const win = new BrowserWindow({ width: 1200, height: 800 }); >> electron.js
+          echo win.loadFile('dist/index.html'); >> electron.js
+          echo } >> electron.js
+          echo app.whenReady().then(createWindow); >> electron.js
+
+      - name: Patch package.json
+        run: |
+          node -e "let p=require('./package.json');p.main='electron.js';p.build={appId:'com.pulse.messenger',productName:'Pulse Messenger',files:['dist/**/*','electron.js'],win:{target:'nsis'}};require('fs').writeFileSync('package.json',JSON.stringify(p,null,2));"
+
+      - name: Build installer
+        run: npx electron-builder --win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: installer
+          path: dist/*.exe
